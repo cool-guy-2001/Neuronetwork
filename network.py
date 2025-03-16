@@ -1,7 +1,9 @@
 import numpy as np
 import CreatData_and_plot as cp
 import copy
-BATCH_SIZE=5
+import math
+
+BATCH_SIZE=30
 LEARNING_RATE=0.01
 #激活函数
 def activation_RELU(input):
@@ -35,14 +37,25 @@ def activation_softmax(input):
     norm_values=exp_values/norm_base
     return norm_values
 
-#损失函数
+#损失函数1
 def precise_loss_function(predicted,real):
     real_matrix=np.zeros((len(real),2))
-    print(real)
+    #print(real)
     real_matrix[:,1]=real
     real_matrix[:,0]=1-real
     product=np.sum(predicted*real_matrix,axis=1)
-    return product
+    return 1-product
+
+#损失函数2
+def loss_function(predicted,real):
+    condition=(predicted>0.5)
+    binary_predicted=np.where(condition,1,0)
+    real_matrix=np.zeros((len(real),2))
+    real_matrix[:,1]=real
+    real_matrix[:,0]=1-real
+    product=np.sum(binary_predicted*real_matrix,axis=1)
+    return 1-product
+
 
 #需求函数
 def get_final_layer_preact_demands(predicted_values,target_vetor):
@@ -131,6 +144,7 @@ class Network:
         targets=np.copy(batch[:,2]).astype(int)
         output=self.network_forward(inputs)
         precise_loss=precise_loss_function(output[-1],targets)
+        loss=loss_function(output[-1],targets)
 
         if np.mean(precise_loss)<=0.1:
             print('No need for trainning')
@@ -138,8 +152,10 @@ class Network:
             backup_network=self.network_backward(output,targets)
             backup_output=backup_network.network_forward(inputs)
             backup_precise_loss=precise_loss_function(backup_output[-1],targets)
+            backup_loss=loss_function(backup_output[-1],targets)
 
-            if np.mean(backup_precise_loss)<=np.mean(precise_loss):
+
+            if np.mean(backup_precise_loss)<=np.mean(precise_loss)or np.mean(backup_loss)<=np.mean(loss):
                 for i in range (len(self.layers)):
                     self.layers[i].weights=backup_network.layers[i].weights.copy()
                     self.layers[i].biases=backup_network.layers[i].biases.copy()
@@ -148,6 +164,20 @@ class Network:
                 print('No Improvement')
         print('----------------------------')
 
+    #多批次训练
+    def train(self,n_entries):
+        n_batches=math.ceil(n_entries//BATCH_SIZE)
+        for i in range(n_batches):
+            batch=cp.create_data(BATCH_SIZE)
+            self.one_batch_train(batch)
+        
+        data=cp.create_data(100)
+        cp.plot_data(data,'Right classfication')    
+        inputs=data[:,:2]
+        output=self.network_forward(inputs)
+        classification=classfiy(output[-1])
+        data[:,2]=classification
+        cp.plot_data(data,'After Tranning')
 """
 a11=0.9
 a21=-0.4
@@ -174,17 +204,49 @@ inputs=np.array([[a11,a21],
 
 def main ():
 
-    data=cp.create_data(BATCH_SIZE)
-    cp.plot_data(data,'Right classfication')
-    print(data)
-    #inputs=data[:,:2]
-    #targets=data[:,2].copy()#标准答案
-    #print(inputs)
-    
-    #建立神经网络
-    network=Network([2,3,4,5,2])
-    network.one_batch_train(data)
+    data=cp.create_data(100)
+    #cp.plot_data(data,'Right classfication')
+    #print(data)
+    """
+    inputs=data[:,:2]
+    targets=data[:,2].copy()#标准答案
+    print(inputs)
+    """
+    #选择起始网络 
+    use_this_network='n'
+    while use_this_network!='Y' and use_this_network!='y':
+        #建立神经网络
+        #中间部分神经元数量太少，导致训练效果不太好
+        #network=Network([2,3,4,5,2])
+        network=Network([2,32,128,64,2])
+        #单批次训练
+        #network.one_batch_train(data)
+        inputs=data[:,:2]
+        output=network.network_forward(inputs)
+        classification=classfiy(output[-1])
+        data[:,2]=classification
+        cp.plot_data(data,'chose network')
+        use_this_network=input('Do you want to use this network? Y/N\n')
+    #进行训练
+    do_train=input('Do you want to train the network? Y/N\n')
+    while do_train=='Y' or do_train=='y' or do_train.isnumeric()==True:
+        if do_train.isnumeric()==True:
+            n_entries=int(do_train)
+        else:
+            n_entries=int(input('Enter the number of entries used for training:\n'))
 
+        network.train(n_entries)
+        do_train=input('Train again? Y/N\n')
+    
+    #演示训练效果
+    inputs=data[:,:2]
+    output=network.network_forward(inputs)
+    classification=classfiy(output[-1])
+    data[:,2]=classification
+    cp.plot_data(data,'After Tranning')
+    
+    #n_entries=int(input('Enter the number of entries used for training:\n'))
+    #network.train(n_entries)
     """
     output=network.network_forward(inputs)
     classification=classfiy(output[-1])
