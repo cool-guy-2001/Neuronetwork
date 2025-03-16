@@ -1,7 +1,7 @@
 import numpy as np
 import CreatData_and_plot as cp
-
-BATCH_SIZE=100
+import copy
+BATCH_SIZE=5
 LEARNING_RATE=0.01
 #激活函数
 def activation_RELU(input):
@@ -110,10 +110,10 @@ class Network:
     
     #反向传播函数
     def network_backward(self,layer_output,targets_vector):
-        backup_network=self.layers.copy()
+        backup_network=copy.deepcopy(self)
         preAct_demands= get_final_layer_preact_demands(layer_output[-1],targets_vector)
         for i in range(len(self.layers)):
-            layer=backup_network[len(self.layers)-1-i]
+            layer=backup_network.layers[len(self.layers)-1-i]
             if i!=0:
                 layer.biases+=LEARNING_RATE*np.mean(preAct_demands,axis=0)
                 layer.biases=vector_normalization(layer.biases)
@@ -125,6 +125,28 @@ class Network:
             layer.weights=normalization(layer.weights)
         return backup_network
     
+    #单批次训练
+    def one_batch_train(self,batch):
+        inputs=batch[:,(0,1)]
+        targets=np.copy(batch[:,2]).astype(int)
+        output=self.network_forward(inputs)
+        precise_loss=precise_loss_function(output[-1],targets)
+
+        if np.mean(precise_loss)<=0.1:
+            print('No need for trainning')
+        else:
+            backup_network=self.network_backward(output,targets)
+            backup_output=backup_network.network_forward(inputs)
+            backup_precise_loss=precise_loss_function(backup_output[-1],targets)
+
+            if np.mean(backup_precise_loss)<=np.mean(precise_loss):
+                for i in range (len(self.layers)):
+                    self.layers[i].weights=backup_network.layers[i].weights.copy()
+                    self.layers[i].biases=backup_network.layers[i].biases.copy()
+                print('Improved')
+            else:
+                print('No Improvement')
+        print('----------------------------')
 
 """
 a11=0.9
@@ -150,19 +172,20 @@ inputs=np.array([[a11,a21],
 """
 
 
-
 def main ():
 
     data=cp.create_data(BATCH_SIZE)
     cp.plot_data(data,'Right classfication')
     print(data)
-    inputs=data[:,:2]
-    targets=data[:,2].copy()#标准答案
-    print(inputs)
+    #inputs=data[:,:2]
+    #targets=data[:,2].copy()#标准答案
+    #print(inputs)
     
     #建立神经网络
     network=Network([2,3,4,5,2])
+    network.one_batch_train(data)
 
+    """
     output=network.network_forward(inputs)
     classification=classfiy(output[-1])
     print(classification)
@@ -175,6 +198,8 @@ def main ():
     new_classification=classfiy(new_output[-1])
     data[:,2]=new_classification
     cp.plot_data(data,'After Tranning')
+    """
+
     """
     loss=precise_loss_function(output[-1],targets)
     print(loss)
