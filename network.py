@@ -1,8 +1,8 @@
 import numpy as np
 import CreatData_and_plot as cp
 
-BATCH_SIZE=5
-
+BATCH_SIZE=100
+LEARNING_RATE=0.01
 #激活函数
 def activation_RELU(input):
     return np.maximum(0,input)
@@ -14,7 +14,13 @@ def normalization(input):
     scale_rate=np.where(max_number==0,1,1/(max_number+epslion))
     norm=input*scale_rate
     return norm
-
+#向量标准化函数
+def vector_normalization(input):
+    max_number=np.max(np.absolute(input))
+    epslion=1e-8
+    scale_rate=np.where(max_number==0,1,1/(max_number+epslion))
+    norm=input*scale_rate
+    return norm
 #分类函数
 def classfiy(probability):
     classification=np.rint(probability[:,1])
@@ -101,6 +107,25 @@ class Network:
                 layer_output=normalization(layer_output)
             output.append(layer_output)
         return output
+    
+    #反向传播函数
+    def network_backward(self,layer_output,targets_vector):
+        backup_network=self.layers.copy()
+        preAct_demands= get_final_layer_preact_demands(layer_output[-1],targets_vector)
+        for i in range(len(self.layers)):
+            layer=backup_network[len(self.layers)-1-i]
+            if i!=0:
+                layer.biases+=LEARNING_RATE*np.mean(preAct_demands,axis=0)
+                layer.biases=vector_normalization(layer.biases)
+            outputs=layer_output[len(layer_output)-2-i]
+            results_list=layer.layer_backward(outputs,preAct_demands)
+            preAct_demands=results_list[0]
+            wegiths_adjust_matrix=results_list[1]
+            layer.weights+=LEARNING_RATE*wegiths_adjust_matrix
+            layer.weights=normalization(layer.weights)
+        return backup_network
+    
+
 """
 a11=0.9
 a21=-0.4
@@ -132,23 +157,25 @@ def main ():
     cp.plot_data(data,'Right classfication')
     print(data)
     inputs=data[:,:2]
-    targets=data[:,2].copy()
+    targets=data[:,2].copy()#标准答案
     print(inputs)
     
     #建立神经网络
     network=Network([2,3,4,5,2])
 
     output=network.network_forward(inputs)
-    """
-    for i in range(len(output)):
-        print('output'+str(i+1))
-        print(output[i])
-        print('----------------')
-    """
     classification=classfiy(output[-1])
     print(classification)
     data[:,2]=classification
     print(data)
+    cp.plot_data(data,'Before Tranning')
+
+    backup_network=network.network_backward(output,targets)
+    new_output=network.network_forward(inputs)
+    new_classification=classfiy(new_output[-1])
+    data[:,2]=new_classification
+    cp.plot_data(data,'After Tranning')
+    """
     loss=precise_loss_function(output[-1],targets)
     print(loss)
     demands=get_final_layer_preact_demands(output[-1],targets)
@@ -160,6 +187,8 @@ def main ():
     #测试层反向传播
     layer_backwards=network.layers[-1].layer_backward(output[-2],demands)
     print(layer_backwards)
+    """
+
     """
     第一层
     layer1=Layer(2,3)
