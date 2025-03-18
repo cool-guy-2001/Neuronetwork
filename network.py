@@ -5,6 +5,18 @@ import math
 
 BATCH_SIZE=30
 LEARNING_RATE=0.01
+force_train=False
+random_train=False
+n_improved=0
+n_not_improved=0
+
+"""
+待优化的点:
+1.不能自动停止，需要用肉眼判断是否接近答案
+2.不能胜任复杂图样，图形一复杂起来跑的就慢了(环形图)
+"""
+
+
 #激活函数
 def activation_RELU(input):
     return np.maximum(0,input)
@@ -140,6 +152,8 @@ class Network:
     
     #单批次训练
     def one_batch_train(self,batch):
+        global force_train,random_train,n_improved,n_not_improved
+
         inputs=batch[:,(0,1)]
         targets=np.copy(batch[:,2]).astype(int)
         output=self.network_forward(inputs)
@@ -160,24 +174,59 @@ class Network:
                     self.layers[i].weights=backup_network.layers[i].weights.copy()
                     self.layers[i].biases=backup_network.layers[i].biases.copy()
                 print('Improved')
+                n_improved+=1
             else:
-                print('No Improvement')
+                if force_train:
+                    for i in range (len(self.layers)):
+                        self.layers[i].weights=backup_network.layers[i].weights.copy()
+                        self.layers[i].biases=backup_network.layers[i].biases.copy()
+                    print("Force train")
+                if random_train:
+                    self.random_update()
+                    print('Random update')
+                else:
+                    print('No Improvement')
+                n_not_improved+=1
         print('----------------------------')
 
     #多批次训练
     def train(self,n_entries):
+        global force_train,random_train,n_improved,n_not_improved
+        n_improved=0
+        n_not_improved=0
+
         n_batches=math.ceil(n_entries//BATCH_SIZE)
         for i in range(n_batches):
             batch=cp.create_data(BATCH_SIZE)
             self.one_batch_train(batch)
-        
-        data=cp.create_data(100)
-        cp.plot_data(data,'Right classfication')    
+        improvement_rate=n_improved/(n_improved+n_not_improved)
+        print("Improvement rate:")
+        print(format(improvement_rate,".0%"))
+
+        if improvement_rate<0.01:
+            force_train=True
+        else:
+            force_train=False
+        if n_improved==0:
+            random_train=True
+        else:
+            random_train=False
+
+        data=cp.create_data(800)
+        #cp.plot_data(data,'Right classfication')    
         inputs=data[:,:2]
         output=self.network_forward(inputs)
         classification=classfiy(output[-1])
         data[:,2]=classification
         cp.plot_data(data,'After Tranning')
+    #随机更新
+    def random_update(self):
+        random_network=Network([2,100,200,100,50,2])
+        for i in range(len(self.layers)):
+            weights_change=random_network.layers[i].weights
+            biases_change=random_network.layers[i].biases
+            self.layers[i].weights+=weights_change
+            self.layers[i].biases+=biases_change
 """
 a11=0.9
 a21=-0.4
@@ -204,8 +253,8 @@ inputs=np.array([[a11,a21],
 
 def main ():
 
-    data=cp.create_data(100)
-    #cp.plot_data(data,'Right classfication')
+    data=cp.create_data(800)#生成数据
+    cp.plot_data(data,'Right classfication')
     #print(data)
     """
     inputs=data[:,:2]
@@ -218,7 +267,7 @@ def main ():
         #建立神经网络
         #中间部分神经元数量太少，导致训练效果不太好
         #network=Network([2,3,4,5,2])
-        network=Network([2,32,128,64,2])
+        network=Network([2,100,200,100,50,2])
         #单批次训练
         #network.one_batch_train(data)
         inputs=data[:,:2]
